@@ -1,7 +1,14 @@
-# COEN351
+# COEN351 Blue
 Blue Team attempt at a simple but secure e-commerce website.
 
+Users are able to transfer credits to other users.
+Credits are absolutely worthless because users can simply add credits to their account for no cost.
+
 ## Local Installation
+
+Python 2.7+ required.
+pip highly recommended.
+See requirements.txt for required packages.
 
 ### Without virtualenv
 
@@ -23,3 +30,12 @@ I highly recommend using virtualenv, as to not interfere with current Python pac
 6. pip install -r requirements
 7. export FLASK_APP=main.py
 8. flask run
+
+## Heroku
+
+If time allows, we'll host this on Heroku.
+
+## To Be Developed
+
+- New User Registration
+- Credit Transfer
