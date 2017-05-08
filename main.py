@@ -46,47 +46,51 @@ def query_db(query, args=(), one=False):
 # index
 @app.route('/')
 def index():
-    if "username" in session:
-        #username should automatically be escaped by template before rednering in html, incase session data was somehow modified
-        return render_template("index.html", username = session['firstName'])
-
-    else:
-        return render_template("login.html")
+    return render_template("index.html")
 
 # login
 # route limits access to POST
-@app.route("/login", methods=["POST"])
+@app.route("/login", methods=["POST","GET"])
 def login():
 
-    # remove non alphanumeric characters from form, after convverting unicode --> ascii
-    username = filter(str.isalnum,request.form["username"].encode("ascii","replace"))
+    #if POST, i.e. form has been submitted with login information
+    if request.method == "POST":
 
-    #sha512 hash
-    password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
+        # remove non alphanumeric characters from form, after convverting unicode --> ascii
+        username = filter(str.isalnum,request.form["username"].encode("ascii","replace"))
 
-    # parameterized query
-    query = "select * from users where password = ? and email = ?;"
-    args = [password, username]
+        #sha512 hash
+        password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
 
-    response = query_db(query,args,one=True)
+        # parameterized query
+        query = "select * from users where password = ? and email = ?;"
+        args = [password, username]
 
-    if response is None:
-        # don't tell user which one is incorrect
-        # otherwise, user can discern info on users in database
-        flash("Wrong username/password combination!")
+        response = query_db(query,args,one=True)
 
+        if response is None:
+            # don't tell user which one is incorrect
+            # otherwise, user can discern info on users in database
+            flash("Wrong username/password combination!")
+            return redirect(url_for("login"))
+
+        else:
+            #set session variables
+            session['username'] = response[1]
+            session['firstName'] = response[4]
+            session['lastName'] = response[5]
+
+            return redirect(url_for("index"))
+
+    #if GET, i.e. user is trying to get to login page
     else:
-        #set session variables
-        session['username'] = response[2]
-        session['firstName'] = response[4]
-        session['lastName'] = response[5]
-
-    return redirect(url_for("index"))
+        return render_template("login.html")
 
 # logout
 @app.route("/logout")
 def logout():
     session.pop('username', None)
+    flash("You have been succesfully logged out.")
     return redirect(url_for('index'))
 
 # tear down
