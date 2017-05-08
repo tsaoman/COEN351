@@ -1,0 +1,8 @@
+Hey, all! 
+
+Crash course in flask: 
+http://flask.pocoo.org/docs/0.12/quickstart/
+
+Most pages, including the index, should come from templates located in the templates directory. 
+
+All other static items, like CSS, should go in static. 
