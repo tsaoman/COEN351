@@ -11,8 +11,21 @@
 </p>
 
 {% if "username" in session %}
-  <p>Add Credits</p>
-  <p>Send User Credits</p>
+
+  <b>Add Credits</b>
+  <form action="/addCredits" method="POST">
+    <input type="number" name="amount" placeholder="Amount">
+    <input type="submit" value="Add">
+  </form>
+
+  <br/>
+
+  <b>Transfer Credits</b>
+  <form action="/transferCredits" method="POST">
+    <input type="username" name="username" placeholder="Username">
+    <input type="number" name="amount" placeholder="Amount">
+    <input type="submit" value="Transfer">
+  </form>
 
 {% else %}
 
