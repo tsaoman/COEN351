@@ -7,7 +7,7 @@ Credits are absolutely worthless because users can simply add credits to their a
 ## Local Installation
 
 Python 2.7+ required.
-pip highly recommended.
+pip and virtualenv highly recommended.
 See requirements.txt for required packages.
 
 ### Without virtualenv
@@ -15,7 +15,7 @@ See requirements.txt for required packages.
 1. git clone
 2. cd COEN351
 3. pip install -r requirements.txt
-4. export FLASK_APP=hello.py
+4. export FLASK_APP=main.py
 5. flask run
 
 ### With virtualenv
