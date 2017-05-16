@@ -62,7 +62,7 @@ def login():
         password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
 
         # parameterized query
-        query = "select * from users where password = ? and email = ?;"
+        query = "select * from users where password = ? and username = ?;"
         args = [password, username]
 
         response = query_db(query,args,one=True)
@@ -75,9 +75,9 @@ def login():
 
         else:
             #set session variables
-            session['username'] = response[1]
-            session['firstName'] = response[4]
-            session['lastName'] = response[5]
+            session['username'] = response[0]
+            session['lastName'] = response[2]
+            session['firstName'] = response[3 ]
 
             return redirect(url_for("index"))
 
@@ -92,25 +92,25 @@ def logout():
     flash("You have been succesfully logged out.")
     return redirect(url_for('index'))
 
-# @app.route("/register", methods=["GET","POST"])
-# def register():
-#     if request.method == "POST":
-#
-#         # remove non alphanumeric characters from form, after convverting unicode --> ascii
-#         #sha512 hash (hex) for password
-#         username = filter(str.isalnum,request.form["username"].encode("ascii","replace"))
-#         password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
-#         lastName = filter(str.isalnum,request.form["lastName"].encode("ascii","replace"))
-#         firstName = filter(str.isalnum,request.form["firstName"].encode("ascii","replace"))
-#
-#         # parameterized query
-#         query = "insert into users values (?,?,?,?,?)"
-#         args = [username,password,lastName,firstName,0.00]
-#
-#         response = query_db(query,args,one=True)
-#
-#     else:
-#         return render_template("register.html")
+@app.route("/register", methods=["GET","POST"])
+def register():
+    if request.method == "POST":
+
+        # remove non alphanumeric characters from form, after convverting unicode --> ascii
+        #sha512 hash (hex) for password
+        username = filter(str.isalnum,request.form["username"].encode("ascii","replace"))
+        password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
+        lastName = filter(str.isalnum,request.form["lastName"].encode("ascii","replace"))
+        firstName = filter(str.isalnum,request.form["firstName"].encode("ascii","replace"))
+
+        # parameterized query
+        query = "insert into users values (?,?,?,?,?)"
+        args = [username,password,lastName,firstName,0.00]
+
+        response = query_db(query,args,one=True)
+
+    else:
+        return render_template("register.html")
 
 # tear down
 @app.teardown_appcontext
