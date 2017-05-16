@@ -31,9 +31,15 @@ def get_db():
     return db
 
 # function to simplify querries
-def query_db(query, args=(), one=False):
-    cur = get_db().execute(query, args)
+# set commit=True if you want to make changes to the DB (versus just querrying it)
+def query_db(query, args=(),commit=False, one=False):
+    db = get_db()
+    cur = db.execute(query, args)
     rv = cur.fetchall()
+
+    if commit:
+        db.commit()
+
     cur.close()
 
     #returns a TUPLE, NOT DICT
@@ -61,25 +67,32 @@ def login():
         username = filter(str.isalnum,request.form["username"].encode("ascii","replace"))
         password = sha512(filter(str.isalnum,request.form["password"].encode("ascii","replace"))).hexdigest()
 
-        # parameterized query
-        query = "select * from users where password = ? and username = ?;"
-        args = [password, username]
-
-        response = query_db(query,args,one=True)
-
-        if response is None:
-            # don't tell user which one is incorrect
-            # otherwise, user can discern info on users in database
-            flash("Wrong username/password combination!")
+        if not username or not password:
+            flash("Fields cannot be empty or contain non alphanumeric characters.")
             return redirect(url_for("login"))
 
         else:
-            #set session variables
-            session['username'] = response[0]
-            session['lastName'] = response[2]
-            session['firstName'] = response[3 ]
 
-            return redirect(url_for("index"))
+            # parameterized query
+            query = "select * from users where password = ? and username = ?;"
+            args = [password, username]
+
+            response = query_db(query,args,one=True)
+
+            if response is None:
+                # don't tell user which one is incorrect
+                # otherwise, user can discern info on users in database
+                flash("Wrong username/password combination!")
+                return redirect(url_for("login"))
+
+            else:
+                #set session variables
+                session['username'] = response[0]
+                session['lastName'] = response[2]
+                session['firstName'] = response[3]
+                session['balance'] = "%.2f" % response[4]
+
+                return redirect(url_for("index"))
 
     #if GET, i.e. user is trying to get to login page
     else:
@@ -94,6 +107,8 @@ def logout():
 
 @app.route("/register", methods=["GET","POST"])
 def register():
+
+    #if POST, i.e. form data being submitted
     if request.method == "POST":
 
         # remove non alphanumeric characters from form, after convverting unicode --> ascii
@@ -103,12 +118,28 @@ def register():
         lastName = filter(str.isalnum,request.form["lastName"].encode("ascii","replace"))
         firstName = filter(str.isalnum,request.form["firstName"].encode("ascii","replace"))
 
-        # parameterized query
-        query = "insert into users values (?,?,?,?,?)"
-        args = [username,password,lastName,firstName,0.00]
+        #if any field is empty, this is return true and execute
+        if not username or not password or not firstName or not lastName:
+            flash("Fields cannot be empty or contain non alphanumeric characters.")
+            return redirect(url_for("register"))
 
-        response = query_db(query,args,one=True)
+        #otherwise, commit to db
+        else:
 
+            # parameterized query
+            query = "insert into users values (?,?,?,?,?)"
+            args = [username,password,lastName,firstName,0.00]
+
+            response = query_db(query,args,commit=True,one=True)
+
+            # return str(response)
+
+            flash("Account successfully created. You may now login.")
+            # flash("Account succesfully created! Please login!")
+
+            return redirect(url_for("login"))
+
+    #if GET, return register page
     else:
         return render_template("register.html")
 

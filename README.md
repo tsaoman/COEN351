@@ -37,5 +37,6 @@ If time allows, we'll host this on Heroku.
 
 ## To Be Developed
 
-- New User Registration
-- Credit Transfer
+- Add Credits -
+- Credit Transfer -
+- Client Side Input Validation / Notifications  

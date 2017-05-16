@@ -27,7 +27,7 @@
     <div class=metanav>
 
       {% if "username" in session %}
-        Hello, {{ session["firstName"] }}! <a href="{{ url_for('logout') }}">logout</a>
+        Hello, {{ session["firstName"] }}! Balance: ${{ session["balance"] }} <a href="{{ url_for('logout') }}">logout</a>
 
       {% else %}
         <a href="{{ url_for('login') }}">login</a>

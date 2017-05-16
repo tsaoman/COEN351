@@ -3,5 +3,21 @@
 {% extends "layout.html" %}
 
 {% block body %}
-  <p>This is the index!</p>
+
+<p>
+  Welcome to the Blue Team Website!
+  Here you can transfer credits to other users.
+  Credits are absolutely worthless because you can simply add credits to your account for no cost.
+</p>
+
+{% if "username" in session %}
+  <p>Add Credits</p>
+  <p>Send User Credits</p>
+
+{% else %}
+
+  <p>But in order for you to do this, you need to <a href="{{ url_for('register') }}">register</a> an account.</p>
+
+{% endif %}
+
 {% endblock %}
