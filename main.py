@@ -28,6 +28,9 @@ def get_db():
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
+        # wrap the connection with a row factory to gain the ability
+        # to reference query results using column names
+        db.row_factory = sqlite3.Row
     return db
 
 # function to simplify querries
@@ -44,6 +47,19 @@ def query_db(query, args=(),commit=False, one=False):
 
     #returns a TUPLE, NOT DICT
     return (rv[0] if rv else None) if one else rv
+
+
+#===================#
+#== INTERCEPTORS ==#
+#===================#
+# annotation sets this function to run after each request
+@app.after_request
+def configure_headers(response):
+    # disable pages from being loaded in iframes (clickjacking attacks)
+    response.headers["X-Frame-Options"] = "NONE"
+    response.headers["Server"] = ""
+    return response
+
 
 #==================#
 #===== ROUTES =====#
@@ -143,12 +159,119 @@ def register():
     else:
         return render_template("register.html")
 
+@app.route("/addCredits", methods=["POST"])
+def add_credits():
+    # break if the user attempts to make the API call without 
+    # authenticating first
+    if session is None or 'username' not in session:
+        flash("Please login first")
+        return render_template("login.html")
+
+    if not isfloat(request.form['amount']) or float(request.form['amount']) < 0:
+        flash("Invalid amount")
+        return render_template("index.html")
+
+    amount = float(request.form['amount'])
+    user = get_user(session['username'])
+    deposit(user, amount)
+
+    flash("Funds successfully deposited into your account")
+    return render_template("index.html")
+
+@app.route("/transferCredits", methods=["POST"])
+def transfer_credits():
+    if session is None or 'username' not in session:
+        flash("Please login first")
+        return render_template("login.html")
+
+    # input validation
+    if not request.form['username']:
+        flash("Please enter the username of the account to which you wish to transfer funds")
+        return render_template("index.html")
+    if not request.form['amount']:
+        flash("Please enter the number of credits to be transfered")
+        return render_template("index.html")
+    if not isfloat(request.form['amount']) or float(request.form['amount']) < 0:
+        flash("Invalid amount")
+        return render_template("index.html")
+
+    source_acct = session['username']
+    dest_acct = sanitize(request.form['username'])
+    amount = float(request.form['amount'])
+
+    # transferring credits to your own account should be an
+    # idempotent operation
+    if source_acct == dest_acct:
+        flash("Transfer successful")
+        return render_template("index.html")
+
+    source_user = get_user(source_acct)
+    if not withdraw(source_user, amount):
+            flash("Insufficient funds")
+            return render_template("index.html")
+
+    dest_user = get_user(dest_acct)
+    if dest_user is not None:
+        # if we error out, we will inform the user whether or not
+        # the username they entered was valid and they'd be able to
+        # brute force all usernames in the db.
+        # rather than reveal that information, let's just withdraw
+        # money from the user's account and not deposit it.
+        deposit(dest_user, amount)
+
+    flash("Transfer successful")
+    return render_template("index.html")
+
+def withdraw(user, amount):
+    balance = user['balance']
+    update_query = "update users set balance = ? where username= ?;"
+    if balance < amount:
+        return False
+    new_balance = balance - amount
+    query_db(update_query, [new_balance, user['username']],
+         commit=True, one=True)
+    return True
+
+def deposit(user, amount):
+    update_query = "update users set balance = ? where username= ?;"
+    new_balance = user['balance'] + amount
+    query_db(update_query, [new_balance, user['username']],
+         commit=True, one=True)
+    return True
+
+def get_user(username):
+    query = "select * from users where username = ?;"
+    return query_db(query, [username], commit=False, one=True)
+
+@app.context_processor
+def context_utils():
+    # defined functions are made accessible in jinja template
+    def get_balance(username):
+        query = "select * from users where username = ?;"
+        result = query_db(query, [username], commit=False, one=True)
+        if result is None:
+            return 0.0
+        return result['balance']
+
+    return dict(get_balance=get_balance)
+
 # tear down
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+def sanitize(string):
+    filter(str.isalnum, string.encode("ascii","replace"))
+    return string
+
+def isfloat(string):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
 
 #=====================================#
 #===== CONDITIONAL RUN VARIABLES =====#
