@@ -126,15 +126,20 @@ def login():
 
 
 def isUserLockedOut(username):
-    query = "select * from users where username = ? AND (lockout_ts is NULL OR lockout_ts < CURRENT_TIMESTAMP);"
+    query = "select * from users where username = ? AND (lockout_ts is not NULL AND lockout_ts > CURRENT_TIMESTAMP);"
     user = query_db(query, [username], one=True)
     if user is None:
-        return True
-    return False
+        # either user with username does not exist or user not
+        # locked out
+        return False
+    return True
 
 def anti_brute_force_measures(username):
     update_lockout_ts = "update users set lockout_ts = datetime('now', '+5 minutes') where username = ?;"
-    bad_login_attempts = get_user(username)['badloginattempts'] + 1
+    user = get_user(username)
+    if user is None:
+        return None
+    bad_login_attempts = user['badloginattempts'] + 1
     update_login_attempts(username, bad_login_attempts)
 
     if bad_login_attempts >= 5:
