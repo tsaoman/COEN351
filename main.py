@@ -166,6 +166,11 @@ def register():
     #if POST, i.e. form data being submitted
     if request.method == "POST":
 
+        # request validation
+        special_character_msg = request_contains_special_characters(request)
+        if special_character_msg is not None:
+            flash(special_character_msg)
+            return render_template("register.html")
         # Password validations
         if request.form["password"] != request.form["confirm"]:
             flash("Passwords do not match")
@@ -307,10 +312,21 @@ def view_transactions():
 
     return render_template("transactions.html")
 
-@app.route("/test", methods=["GET"])
-def test():
-    return jsonify({"result":verify_password_policy_compliance(request.args.get("password"))})
+def request_contains_special_characters(request):
+    for field in request.form:
+        if contains_special_character(field):
+            # if user sends additional fields (potentially for xss attack),
+            # will be handled here
+            continue
+        if contains_special_character(request.form[field]):
+            return "'" + field + "' field contains a special character."
+    return None
 
+def contains_special_character(string):
+    password_pattern = re.compile('[~!@#$%^&*_\\-+=`|\(\)\{\}\[\]:;"\'<>,.?\]]')
+    if password_pattern.search(string) is not None:
+        return True
+    return False
 
 def verify_password_policy_compliance(password):
     password_pattern = re.compile('[~!@#$%^&*_\\-+=`|\(\)\{\}\[\]:;"\'<>,.?\]]')
@@ -319,9 +335,6 @@ def verify_password_policy_compliance(password):
     # verify length
     if len(password) < 8:
         return "Password must be longer than 8 characters"
-    # check for special characters
-    if password_pattern.search(password) is None:
-        return "Password must contain at least one special character"
     if re.compile('[A-Z]').search(password) is None:
         return "Password must contain at least one upper case character"
     if re.compile('[a-z]').search(password) is None:
