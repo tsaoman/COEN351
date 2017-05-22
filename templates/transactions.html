@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+
+{% block body %}
+	<table id="transactions">
+		<tr>
+			<th class="th351">Date</th>
+			<th class="th351">Description</th>
+			<th class="th351">Amount</th>
+		</tr>
+	</table>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<script>
+		$(document).ready(function() {
+			$.get("transactions/view", function(transactions) {
+				if (transactions.errormsg != null || 
+						transactions.length == 0) {
+					$('#transactions').append(
+						$('<tr/>').append(
+							$('<td/>').append(
+								$('<h3/>').html('No transactions to display')
+								).attr('colspan', '3')
+								.attr('class', 'td351')
+							)
+						);
+					return;
+				}
+				for (var i = 0; i < transactions.length; ++i) {
+					if (i > 26) {
+						// display only 25 of the most recent transactions
+						break;
+					}
+					var row = $('<tr/>')
+					row.append(
+						$('<td/>').html(transactions[i].time).attr('class', 'td351'));
+					row.append(
+						$('<td/>').html(transactions[i].description).attr('class', 'td351'));
+					row.append(
+						$('<td/>').html(transactions[i].amount).attr('class', 'td351'));
+					$('#transactions').append(row);
+				}
+			})
+		})
+	</script>
+{% endblock %}

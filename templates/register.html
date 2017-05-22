@@ -7,11 +7,30 @@
     <p>You're logged in already!</p>
 
   {% else %}
+    <h3>Password Requirements:</h3>
+    <ul>
+      <li>Must be at least 8 characters long</li>
+      <li>Must contain at least one uppercase character</li>
+      <li>Must contain at least one lowercase character</li>
+      <li>Must contain at least one digit</li>
+    </ul>
+  
     <form action="/register" method="POST">
-      <input type="username" name="username" placeholder="Username">
-      <input type="password" name="password" placeholder="Password">
-      <input type="text" name="firstName" placeholder="First Name">
-      <input type="text" name="lastName" placeholder="Last Name">
+      <div class="coen351">
+        Username: <input type="username" name="username" placeholder="Username"/>
+      </div>
+      <div class="coen351">
+        Password: <input type="password" name="password" placeholder="Password"/>
+      </div>
+      <div class="coen351">
+        Confirm Password: <input type="password" name="confirm" placeholder="Confirm Password"/>
+      </div>
+      <div class="coen351">
+        First Name: <input type="text" name="firstName" placeholder="First Name"/>
+      </div>
+      <div class="coen351">
+        Last Name: <input type="text" name="lastName" placeholder="Last Name"/>
+      </div>
 
       <input type="submit" value="Submit">
     </form>

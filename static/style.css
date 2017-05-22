@@ -45,3 +45,11 @@ h2 {
   background: #f0d6d6;
   padding: 0.5em;
 }
+
+#transactions {
+  border-collapse: collapse;
+}
+
+.th351, .td351 {
+  border: 1px solid black;
+}

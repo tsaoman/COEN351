@@ -5,11 +5,12 @@
 #===== MODULES =====#
 #===================#
 
-from flask import Flask, flash, redirect, render_template, request, session, abort, g, url_for, escape
+from flask import Flask, flash, redirect, render_template, request, session, abort, g, url_for, escape, jsonify
 from hashlib import sha512
 import string
 import sqlite3
 import os
+import re
 
 #=================#
 #===== MAIN ======#
@@ -89,6 +90,10 @@ def login():
 
         else:
 
+            if isUserLockedOut(username) == True:
+                flash("This user account is locked")
+                return render_template("login.html")
+
             # parameterized query
             query = "select * from users where password = ? and username = ?;"
             args = [password, username]
@@ -96,12 +101,17 @@ def login():
             response = query_db(query,args,one=True)
 
             if response is None:
+                # potentially lock out an attacker who is trying
+                # to brute force / DoS our application
+                anti_brute_force_measures(username)
                 # don't tell user which one is incorrect
                 # otherwise, user can discern info on users in database
                 flash("Wrong username/password combination!")
                 return redirect(url_for("login"))
 
             else:
+                reset_login_attempts(username)
+
                 #set session variables
                 session['username'] = response[0]
                 session['lastName'] = response[2]
@@ -113,6 +123,35 @@ def login():
     #if GET, i.e. user is trying to get to login page
     else:
         return render_template("login.html")
+
+
+def isUserLockedOut(username):
+    query = "select * from users where username = ? AND (lockout_ts is not NULL AND lockout_ts > CURRENT_TIMESTAMP);"
+    user = query_db(query, [username], one=True)
+    if user is None:
+        # either user with username does not exist or user not
+        # locked out
+        return False
+    return True
+
+def anti_brute_force_measures(username):
+    update_lockout_ts = "update users set lockout_ts = datetime('now', '+5 minutes') where username = ?;"
+    user = get_user(username)
+    if user is None:
+        return None
+    bad_login_attempts = user['badloginattempts'] + 1
+    update_login_attempts(username, bad_login_attempts)
+
+    if bad_login_attempts >= 5:
+        flash("This user account is locked for 5 minutes")
+        query_db(update_lockout_ts, [username], one=True, commit=True)
+
+def reset_login_attempts(username):
+    update_login_attempts(username, 0)
+
+def update_login_attempts(username, bad_login_attempts):
+    query = "update users set badloginattempts = ? where username = ?;"
+    query_db(query, [bad_login_attempts, username], one=True, commit=True)
 
 # logout
 @app.route("/logout")
@@ -126,6 +165,20 @@ def register():
 
     #if POST, i.e. form data being submitted
     if request.method == "POST":
+
+        # request validation
+        special_character_msg = request_contains_special_characters(request)
+        if special_character_msg is not None:
+            flash(special_character_msg)
+            return render_template("register.html")
+        # Password validations
+        if request.form["password"] != request.form["confirm"]:
+            flash("Passwords do not match")
+            return render_template("register.html")
+        password_validation_message = verify_password_policy_compliance(request.form["password"])
+        if password_validation_message is not None:
+            flash(password_validation_message)
+            return render_template("register.html")
 
         # remove non alphanumeric characters from form, after convverting unicode --> ascii
         #sha512 hash (hex) for password
@@ -141,9 +194,12 @@ def register():
 
         #otherwise, commit to db
         else:
+            if get_user(username) is not None:
+                flash("A user already exists with this username")
+                return render_template("register.html")
 
             # parameterized query
-            query = "insert into users values (?,?,?,?,?)"
+            query = "insert into users (username,password,lastname,firstname, balance) values (?,?,?,?,?)"
             args = [username,password,lastName,firstName,0.00]
 
             response = query_db(query,args,commit=True,one=True)
@@ -174,6 +230,7 @@ def add_credits():
     amount = float(request.form['amount'])
     user = get_user(session['username'])
     deposit(user, amount)
+    log_transaction(session['username'], None, amount, "deposit")
 
     flash("Funds successfully deposited into your account")
     return render_template("index.html")
@@ -207,8 +264,9 @@ def transfer_credits():
 
     source_user = get_user(source_acct)
     if not withdraw(source_user, amount):
-            flash("Insufficient funds")
-            return render_template("index.html")
+        flash("Insufficient funds")
+        return render_template("index.html")
+    log_transaction(source_acct, dest_acct, amount, "outgoing_transfer")
 
     dest_user = get_user(dest_acct)
     if dest_user is not None:
@@ -218,9 +276,73 @@ def transfer_credits():
         # rather than reveal that information, let's just withdraw
         # money from the user's account and not deposit it.
         deposit(dest_user, amount)
+        log_transaction(source_acct, dest_acct, amount, "incoming_transfer")
 
     flash("Transfer successful")
     return render_template("index.html")
+
+@app.route("/transactions/view", methods=["GET"])
+def get_transactions():
+    # break if the user attempts to make the API call without 
+    # authenticating first
+    if session is None or 'username' not in session:
+        response = jsonify({"errorMsg":"User not logged in"})
+        response.status_code = 401
+        return response
+
+    query = "select * from transactions where username=? order by crt_ts desc limit 25;"
+    transactions = query_db(query, [session['username']],
+         commit=False, one=False)
+
+    transaction_list = []
+    for transaction in transactions: 
+        obj = { "description": str(transaction['description']), "amount": str(transaction['amount']),
+            "time": str(transaction['crt_ts']) }
+        transaction_list.append(obj)
+    return jsonify(transaction_list)
+
+
+@app.route("/transactions", methods=["GET"])
+def view_transactions():
+    # break if the user attempts to make the API call without 
+    # # authenticating first
+    if session is None or 'username' not in session:
+        flash("Please login first")
+        return render_template("login.html")
+
+    return render_template("transactions.html")
+
+def request_contains_special_characters(request):
+    for field in request.form:
+        if contains_special_character(field):
+            # if user sends additional fields (potentially for xss attack),
+            # will be handled here
+            continue
+        if contains_special_character(request.form[field]):
+            return "'" + field + "' field contains a special character."
+    return None
+
+def contains_special_character(string):
+    password_pattern = re.compile('[~!@#$%^&*_\\-+=`|\(\)\{\}\[\]:;"\'<>,.?\]]')
+    if password_pattern.search(string) is not None:
+        return True
+    return False
+
+def verify_password_policy_compliance(password):
+    password_pattern = re.compile('[~!@#$%^&*_\\-+=`|\(\)\{\}\[\]:;"\'<>,.?\]]')
+    if password is None:
+        return "Please provide a password"
+    # verify length
+    if len(password) < 8:
+        return "Password must be longer than 8 characters"
+    if re.compile('[A-Z]').search(password) is None:
+        return "Password must contain at least one upper case character"
+    if re.compile('[a-z]').search(password) is None:
+        return "Password must contain at least one lower case character"
+    if re.compile('[0-9]').search(password) is None:
+        return "Password must contain at least one digit"
+    return None
+
 
 def withdraw(user, amount):
     balance = user['balance']
@@ -242,6 +364,30 @@ def deposit(user, amount):
 def get_user(username):
     query = "select * from users where username = ?;"
     return query_db(query, [username], commit=False, one=True)
+
+def log_transaction(source_username, dest_username, amount, transaction_type):
+    query = "insert into transactions (username, description, amount) values (?, ?, ?);"
+    description = None
+    user = None
+    amount_formatted = None
+
+    if transaction_type == "deposit":
+        description = 'Credit Deposit'
+        user = source_username
+        amount_formatted = "+${:.2f}".format(amount)
+    elif transaction_type == "outgoing_transfer":
+        description = "Outgoing transfer to user '{}'".format(dest_username)
+        user = source_username
+        amount_formatted = "-${:.2f}".format(amount)
+    elif transaction_type == "incoming_transfer":
+        description = "Incoming transfer from user '{}'".format(source_username)
+        user = dest_username
+        amount_formatted = "+${:.2f}".format(amount)
+    else:
+        raise ValueError("Invalid transaction type")
+
+    query_db(query, [user, description, amount_formatted], commit=True, one=True)
+
 
 @app.context_processor
 def context_utils():
